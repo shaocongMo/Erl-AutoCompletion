@@ -34,8 +34,12 @@ class ErlListener(sublime_plugin.EventListener):
 
         point = locations[0] - len(prefix) - 1
         letter = view.substr(point)
+        print(view.substr(locations[0]-1))
+        if view.substr(locations[0]-1) == 'a':
+            view.show_completions(point, '', ["123", "456"])
 
         if letter == ':':
+            # show function
             module_name = view.substr(view.word(point))
             if module_name.strip() == ':': 
                 return
@@ -47,12 +51,36 @@ class ErlListener(sublime_plugin.EventListener):
             completion = cache['project'].query_mod_fun(module_name)
             if completion != []:
                 return (completion, flag)
+        elif letter == '?':
+            # show define list
+            filepath = view.file_name()
+            completion = cache['project'].query_file_defines(filepath)
+            if completion != []:
+                return (completion, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+            return
+        elif letter == '#':
+            # show record list
+            filepath = view.file_name()
+            completion = cache['project'].query_file_record(filepath)
+            if completion != []:
+                return (completion, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+            return
         else:
             if letter == '-' and view.substr(view.line(point))[0] == '-':
                 return GLOBAL_SET['-key']
 
+            record = cache['project'].looking_for_ther_nearest_record(view, locations[0] - 1)
+            if record != []:
+                # show record field
+                record_name = "".join(record)
+                fields = cache['project'].query_record_fields(record_name)
+                if fields != []:
+                    return (fields, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+
             if re.match('^[0-9a-z_]+$', prefix) and len(prefix) > 1:
-                return cache['libs'].query_all_mod() + cache['project'].query_all_mod() + cache['libs'].query_mod_fun('erlang')
+                # show module
+                modules = cache['libs'].query_all_mod() + cache['project'].query_all_mod() + cache['libs'].query_mod_fun('erlang')
+                return [ (mname, mval+":") for (mname, mval) in modules]
             
             return ([], sublime.INHIBIT_EXPLICIT_COMPLETIONS)
 

@@ -60,6 +60,84 @@ delete from libs where id in (select id from libs_info where parent_id = ?);
 DEL_FOLDER_SQL = '''
 delete from libs_info where parent_id = ? or folder = ?;
 '''
+
+CREATE_INCLUDE_SQL = '''
+create table if not exists includes ( 
+    id int unsigned not null,
+    file_name varchar ( 128 ) not null, 
+    include varchar ( 128 ), 
+    primary key (id, file_name, include)
+);
+'''
+
+INSERT_INCLUDE_INFO_SQL = '''
+replace into includes (id, file_name, include) values (?, ?, ?);
+'''
+
+CREATE_DEFINE_SQL = '''
+create table if not exists defines (
+    id int unsigned not null,
+    file_name varchar(128) not null,
+    define varchar(128) not null,
+    primary key (id, file_name, define)
+);
+'''
+
+INSERT_DEFINE_SQL = '''
+replace into defines (id, file_name, define) values (?, ?, ?);
+'''
+
+QUERY_DEFINE_SQL = '''
+with recursive
+    includetree(name) as (
+    select ? union all 
+    select includes.include from includetree, includes 
+    where includes.file_name = includetree.name)
+select t.define from includetree, defines t where t.file_name = includetree.name;
+'''
+
+CREATE_RECORD_INFO_SQL = '''
+create table if not exists records (
+    id int unsigned not null,
+    file_name varchar (128) not null,
+    record varchar(128) not null,
+    field varchar(128) not null,
+    default_val varchar(128) not null,
+    primary key (id, file_name, record, field)
+);
+'''
+
+INSERT_RECORD_INFO_SQL = '''
+replace into records (id, file_name, record, field, default_val) values (?, ?, ?, ?, ?);
+'''
+
+QUERY_RECORD_SQL = '''
+with recursive
+    includetree(name) as (
+    select ? union all 
+    select includes.include from includetree, includes 
+    where includes.file_name = includetree.name)
+select t.record from includetree,
+(select records.file_name, records.record from records group by records.record) t 
+where t.file_name = includetree.name;
+'''
+
+QUERY_RECORD_FIELDS_SQL = '''
+select field, default_val from records where record = ?;
+'''
+
+DEL_INCLUDE_SQL = '''
+delete from includes where id in (select id from libs_info where parent_id = ?);
+'''
+
+DEL_DEFINE_SQL = '''
+delete from defines where id in (select id from libs_info where parent_id = ?);
+'''
+
+DEL_RECORD_SQL = '''
+delete from records where id in (select id from libs_info where parent_id = ?);
+'''
+
 class DataCache:
     def __init__(self, data_type = '', cache_dir = '', dir = None):
         self.dir = dir
@@ -78,6 +156,9 @@ class DataCache:
         self.db_cur = self.db_con.cursor()
         self.db_cur.execute(CREATE_LIBS_INFO_SQL)
         self.db_cur.execute(CREATE_LIBS_SQL)
+        self.db_cur.execute(CREATE_INCLUDE_SQL)
+        self.db_cur.execute(CREATE_DEFINE_SQL)
+        self.db_cur.execute(CREATE_RECORD_INFO_SQL)
 
     def query_mod_fun(self, module):
         query_data = []
@@ -130,19 +211,65 @@ class DataCache:
 
         return completion_data
 
+    def query_file_defines(self, filepath):
+        filename = self.get_filename_from_path(filepath)
+        query_data = []
+        try:
+            self.lock.acquire(True)
+            self.db_cur.execute(QUERY_DEFINE_SQL, (filename, ))
+            query_data = self.db_cur.fetchall()
+        finally:
+            self.lock.release()
+        completion_data = []
+        for (define, ) in query_data:
+            completion_data.append([('{0}\tdefine').format(define), ('{0}${1}').format(define,1)])
+        return completion_data
+
+    def query_file_record(self, filepath):
+        filename = self.get_filename_from_path(filepath)
+        query_data = []
+        try:
+            self.lock.acquire(True)
+            self.db_cur.execute(QUERY_RECORD_SQL, (filename, ))
+            query_data = self.db_cur.fetchall()
+        finally:
+            self.lock.release()
+        completion_data = []
+        for (record, ) in query_data:
+            completion_data.append([('{0}\trecord').format(record), ('{0}${1}').format(record,1)])
+        return completion_data
+
+    def query_record_fields(self, record):
+        query_data = []
+        try:
+            self.lock.acquire(True)
+            self.db_cur.execute(QUERY_RECORD_FIELDS_SQL, (record, ))
+            query_data = self.db_cur.fetchall()
+        finally:
+            self.lock.release()
+        completion_data = []
+        for (field, default_val) in query_data:
+            completion_data.append([('{0}\tfield').format(field), ('{0} = ${{{1}:{2}}}${3}').format(field, 0, default_val, 1)])
+        return completion_data
+
     def build_module_index(self, filepath, folder_id):
         with open(filepath, encoding = 'UTF-8', errors='ignore') as fd:
             content = fd.read()
             code = re.sub(self.re_dict['comment'], '\n', content)
 
             export_fun = {}
-            for export_match in self.re_dict['export'].finditer(code):
-                for funname_match in self.re_dict['funname'].finditer(export_match.group()):
-                    [name, cnt] = funname_match.group().split('/')
-                    export_fun[(name, int(cnt))] = None
+            is_export_all = self.re_dict['export_all'].search(code)
+            if not is_export_all:
+                for export_match in self.re_dict['export'].finditer(code):
+                    for funname_match in self.re_dict['funname'].finditer(export_match.group()):
+                        [name, cnt] = funname_match.group().split('/')
+                        export_fun[(name, int(cnt))] = None
             module = self.get_module_from_path(filepath)
+            filename = self.get_filename_from_path(filepath)
 
             row_num = 1
+            includes = []
+            defines = []
             for line in code.split('\n'):
                 funhead = self.re_dict['funline'].search(line)
                 if funhead is not None: 
@@ -150,19 +277,48 @@ class DataCache:
                     param_str = funhead.group(2)
                     param_list = self.format_param(param_str)
                     param_len = len(param_list)
-                    if (fun_name, param_len) in export_fun:
-                        del(export_fun[(fun_name, param_len)])
-                        try:
-                            self.lock.acquire(True)
-                            self.db_cur.execute(INSERT_LIBS_SQL, (folder_id, module, fun_name, param_len, row_num, param_str))
-                        finally:
-                            self.lock.release()
+                    if (fun_name, param_len) in export_fun or is_export_all != None:
+                        if is_export_all == None:
+                            del(export_fun[(fun_name, param_len)])
+                        self.db_execute(INSERT_LIBS_SQL, (folder_id, module, fun_name, param_len, row_num, param_str))
+                else:
+                    includehead = self.re_dict['take_include'].search(line)
+                    if includehead is not None:
+                        includefile = includehead.group(1)
+                        if includefile not in includes:
+                            self.db_execute(INSERT_INCLUDE_INFO_SQL, (folder_id, filename, includefile))
+                    else:
+                        definehead = self.re_dict['defineline'].search(line)
+                        if definehead is not None:
+                            define = definehead.group(1)
+                            if define not in defines:
+                                self.db_execute(INSERT_DEFINE_SQL, (folder_id, filename, define))
                 row_num += 1
+
+            records = []
+            records_match = self.re_dict['record_re'].findall(code)
+            for (record, fields_data) in records_match:
+                if record not in records:
+                    records.append(record)
+                    fields_match = self.re_dict['record_field_re'].findall(fields_data)
+                    for (field, default_val) in fields_match:
+                        self.db_execute(INSERT_RECORD_INFO_SQL,(folder_id, filename, record, field, default_val))
+
+    def db_execute(self, sql, params):
+        try:
+            self.lock.acquire(True)
+            self.db_cur.execute(sql, params)
+        finally:
+            self.lock.release()
 
     def get_module_from_path(self, filepath):
         (path, filename) = os.path.split(filepath)
         (module, extension) = os.path.splitext(filename)
         return module
+
+    def get_filename_from_path(self, filepath):
+        (path, filename) = os.path.split(filepath)
+        return filename
 
     def format_param(self, param_str):
         param_str = re.sub(self.re_dict['special_param'], 'Param', param_str)
@@ -180,15 +336,18 @@ class DataCache:
         return completion
 
     def build_data(self):
+        self.build_dir_data(self.dir)
+
+    def build_dir_data(self, dirpath):
         all_filepath = []
         start_time = time.time()
         task_pool = ThreadPool(self.pool_size)
         self.lock = threading.Lock()
 
-        if self.dir == None:
+        if dirpath == None:
             folders = self.get_all_open_folders()
         else:
-            folders = self.dir
+            folders = dirpath
 
         is_save_build_index = False
         for folder in folders:
@@ -200,7 +359,7 @@ class DataCache:
             self.db_cur.execute(INSERT_FOLDER_INFO, (self.folder_id, 0, folder))
             parent_id = self.folder_id
             for root, dirs, files in os.walk(folder):
-                erl_files = fnmatch.filter(files, '*.erl')
+                erl_files = fnmatch.filter(files, '*.[e|h]rl')
                 if erl_files == []:
                     continue
                     
@@ -240,7 +399,11 @@ class DataCache:
     def rebuild_module_index(self, filepath):
         (folder, filename) = os.path.split(filepath)
         (module, extension) = os.path.splitext(filename)
-        (fid, pid) = self.get_folder_id(folder)
+        get_fid_return = self.get_folder_id(folder)
+        if get_fid_return == None:
+            self.build_dir_data([folder])
+            return
+        (fid, pid) = get_fid_return
         try:
             self.lock.acquire(True)
             self.db_cur.execute(DEL_LIBS_SQL, (fid, module))
@@ -255,6 +418,9 @@ class DataCache:
                 self.lock.acquire(True)
                 folder_info = self.get_folder_id(folder)
                 self.db_cur.execute(DEL_FOLDER_LIBS_SQL, (folder_info[0], ))
+                self.db_cur.execute(DEL_INCLUDE_SQL, (folder_info[0], ))
+                self.db_cur.execute(DEL_DEFINE_SQL, (folder_info[0], ))
+                self.db_cur.execute(DEL_RECORD_SQL, (folder_info[0], ))
                 self.db_cur.execute(DEL_FOLDER_SQL, (folder_info[0], folder))
             finally:
                 self.lock.release()
@@ -267,3 +433,36 @@ class DataCache:
                 this.build_data()
                 
         BuildDataAsync().start()
+
+    def looking_for_ther_nearest_record(self, view, pos):
+        stack = []
+        in_str = False
+        while pos > 0:
+            char = view.substr(pos)
+            if char == '"':
+                if len(stack) == 0 or stack[len(stack) - 1] != char:
+                    in_str = True
+                    stack.append(char)
+                elif stack[len(stack) - 1] == char:
+                    in_str = False
+                    stack.pop()
+            if char == '}' and in_str == False:
+                stack.append(char)
+            if char == '{' and in_str == False:
+                if len(stack) == 0:
+                    record = []
+                    while pos > 0:
+                        pos -= 1
+                        char = view.substr(pos)
+                        if char == '#' and record != []:
+                            record.reverse()
+                            return record
+                        if char == ' ':
+                            break
+                        record.append(char)
+                elif stack[len(stack) - 1] == '}':
+                    stack.pop()
+                else:
+                    return []
+            pos -= 1
+        return []

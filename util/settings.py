@@ -24,8 +24,13 @@ GLOBAL_SET = {
     'compiled_re' : {
         'comment' : re.compile(r'%.*\n'),
         'export' : re.compile(r'^\s*-\s*export\s*\(\s*\[\s*([^\]]*)\s*\]\s*\)\s*.', re.DOTALL + re.MULTILINE),
+        'export_all' : re.compile(r'^\s*-\s*compile\s*\(\s*export_all\s*\)\s*.', re.DOTALL + re.MULTILINE),
         'funname' : re.compile(r'[a-zA-Z]+\w*\s*\/\s*[0-9]+'),
         'funline' : re.compile(r'\s*(\w+)\s*\(([^)]*)\).*\-\>'),
+        'includeline' : re.compile(r'^\s*-\s*include\s*\(\s*"(\w+.\w+)"\s*\)\s*.'),
+        'defineline' : re.compile(r'^\s*-\s*define\s*\(\s*(\w+),\s*\w+\s*\)\s*.'),
+        'record_re' : re.compile(r'\s*-\s*record\s*\(\s*(\w+)\s*,\s*\{([^-]*)\}\s*\)\s*.', re.DOTALL + re.MULTILINE),
+        'record_field_re' : re.compile(r'\s*(\w+)\s*=\s*([#{}\[\].\w\d"]*)\s*,?\s*', re.DOTALL + re.MULTILINE),
         'special_param': re.compile(r'(?:\{.*\})|(?:<<.*>>)|(?:\[.*\])'),
         '=' : re.compile(r'\s*=\s*\w+'),
         'take_mf' : re.compile(r'(\w+)\s*:\s*(\w+)\s*\('),
