@@ -462,6 +462,7 @@ class DataCache:
         else:
             in_str = False
             found_first_spec_word = False
+            pos -= 1
             while pos > 0:
                 char = view.substr(pos)
                 match_spec = re.compile(r'\w').match(char)

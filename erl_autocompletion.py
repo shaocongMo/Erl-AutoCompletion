@@ -39,8 +39,10 @@ class ErlListener(sublime_plugin.EventListener):
         pos = sel.end()
         point = locations[0] - len(prefix) - 1
         if view.substr(pos - 1) in ERL_AUTO_COMPLETE:
+            field_pos = pos
             letter = view.substr(pos - 1)
         else:
+            field_pos = locations[0] - 1
             letter = view.substr(point)
 
         if letter == ':':
@@ -74,7 +76,7 @@ class ErlListener(sublime_plugin.EventListener):
             if letter == '-' and view.substr(view.line(point))[0] == '-':
                 return GLOBAL_SET['-key']
 
-            (record, need_show_equal) = cache['project'].looking_for_ther_nearest_record(view, locations[0] - 1)
+            (record, need_show_equal) = cache['project'].looking_for_ther_nearest_record(view, field_pos)
             if record != []:
                 # show record field
                 record_name = "".join(record)
@@ -87,7 +89,7 @@ class ErlListener(sublime_plugin.EventListener):
                 modules = cache['libs'].query_all_mod() + cache['project'].query_all_mod() + cache['libs'].query_mod_fun('erlang')
                 return [ (mname, mval+":") for (mname, mval) in modules]
             
-            return ([], sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+            # return None
 
     def on_text_command(self, view, command_name, args):
         if command_name == 'goto':
@@ -130,6 +132,8 @@ class ErlListener(sublime_plugin.EventListener):
         view_sel = view.sel()
         sel = view_sel[0]
         pos = sel.end()
+        if not view.match_selector(pos, "source.erlang"): 
+            return
         if view.substr(pos - 1) in ERL_AUTO_COMPLETE:
             view.run_command('auto_complete')
 
