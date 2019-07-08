@@ -66,11 +66,11 @@ class ErlListener(sublime_plugin.EventListener):
             if letter == '-' and view.substr(view.line(point))[0] == '-':
                 return GLOBAL_SET['-key']
 
-            record = cache['project'].looking_for_ther_nearest_record(view, locations[0] - 1)
+            (record, need_show_equal) = cache['project'].looking_for_ther_nearest_record(view, locations[0] - 1)
             if record != []:
                 # show record field
                 record_name = "".join(record)
-                fields = cache['project'].query_record_fields(record_name)
+                fields = cache['project'].query_record_fields(record_name, need_show_equal)
                 if fields != []:
                     return (fields, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
 

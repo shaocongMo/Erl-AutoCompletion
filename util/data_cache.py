@@ -239,7 +239,7 @@ class DataCache:
             completion_data.append([('{0}\trecord').format(record), ('{0}${1}').format(record,1)])
         return completion_data
 
-    def query_record_fields(self, record):
+    def query_record_fields(self, record, need_show_equal):
         query_data = []
         try:
             self.lock.acquire(True)
@@ -249,7 +249,10 @@ class DataCache:
             self.lock.release()
         completion_data = []
         for (field, default_val) in query_data:
-            completion_data.append([('{0}\tfield').format(field), ('{0} = ${{{1}:{2}}}${3}').format(field, 1, default_val, 2)])
+            if need_show_equal:
+                completion_data.append([('{0}\tfield').format(field), ('{0} = ${{{1}:{2}}}${3}').format(field, 1, default_val, 2)])
+            else:    
+                completion_data.append([('{0}\tfield').format(field), ('{0}').format(field)])
         return completion_data
 
     def build_module_index(self, filepath, folder_id):
@@ -444,9 +447,9 @@ class DataCache:
                 char = view.substr(pos)
                 if char == '#' and record != []:
                     record.reverse()
-                    return record
+                    return record, False
                 if char == ' ':
-                    return []
+                    return [], False
                 record.append(char)
         else:
             in_str = False
@@ -457,7 +460,7 @@ class DataCache:
                 if match_spec is None and found_first_spec_word == False :
                     found_first_spec_word = True
                     if char == '=':
-                        return []
+                        return [], False
                 if char == '"':
                     if len(stack) == 0 or stack[len(stack) - 1] != char:
                         in_str = True
@@ -475,13 +478,13 @@ class DataCache:
                             char = view.substr(pos)
                             if char == '#' and record != []:
                                 record.reverse()
-                                return record
+                                return record, True
                             if char == ' ':
                                 break
                             record.append(char)
                     elif stack[len(stack) - 1] == '}':
                         stack.pop()
                     else:
-                        return []
+                        return [], False
                 pos -= 1
-            return []
+            return [], False
