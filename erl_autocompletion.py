@@ -34,9 +34,6 @@ class ErlListener(sublime_plugin.EventListener):
 
         point = locations[0] - len(prefix) - 1
         letter = view.substr(point)
-        print(view.substr(locations[0]-1))
-        if view.substr(locations[0]-1) == 'a':
-            view.show_completions(point, '', ["123", "456"])
 
         if letter == ':':
             # show function

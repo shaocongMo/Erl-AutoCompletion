@@ -249,7 +249,7 @@ class DataCache:
             self.lock.release()
         completion_data = []
         for (field, default_val) in query_data:
-            completion_data.append([('{0}\tfield').format(field), ('{0} = ${{{1}:{2}}}${3}').format(field, 0, default_val, 1)])
+            completion_data.append([('{0}\tfield').format(field), ('{0} = ${{{1}:{2}}}${3}').format(field, 1, default_val, 2)])
         return completion_data
 
     def build_module_index(self, filepath, folder_id):
@@ -436,33 +436,52 @@ class DataCache:
 
     def looking_for_ther_nearest_record(self, view, pos):
         stack = []
-        in_str = False
-        while pos > 0:
-            char = view.substr(pos)
-            if char == '"':
-                if len(stack) == 0 or stack[len(stack) - 1] != char:
-                    in_str = True
-                    stack.append(char)
-                elif stack[len(stack) - 1] == char:
-                    in_str = False
-                    stack.pop()
-            if char == '}' and in_str == False:
-                stack.append(char)
-            if char == '{' and in_str == False:
-                if len(stack) == 0:
-                    record = []
-                    while pos > 0:
-                        pos -= 1
-                        char = view.substr(pos)
-                        if char == '#' and record != []:
-                            record.reverse()
-                            return record
-                        if char == ' ':
-                            break
-                        record.append(char)
-                elif stack[len(stack) - 1] == '}':
-                    stack.pop()
-                else:
-                    return []
+        if pos - 2 > 0 and view.substr(pos - 1) == '.':
+            record = []
             pos -= 1
-        return []
+            while pos > 0:
+                pos -= 1
+                char = view.substr(pos)
+                if char == '#' and record != []:
+                    record.reverse()
+                    return record
+                if char == ' ':
+                    return []
+                record.append(char)
+        else:
+            in_str = False
+            found_first_spec_word = False
+            while pos > 0:
+                char = view.substr(pos)
+                match_spec = re.compile(r'\w').match(char)
+                if match_spec is None and found_first_spec_word == False :
+                    found_first_spec_word = True
+                    if char == '=':
+                        return []
+                if char == '"':
+                    if len(stack) == 0 or stack[len(stack) - 1] != char:
+                        in_str = True
+                        stack.append(char)
+                    elif stack[len(stack) - 1] == char:
+                        in_str = False
+                        stack.pop()
+                if char == '}' and in_str == False:
+                    stack.append(char)
+                if char == '{' and in_str == False:
+                    if len(stack) == 0:
+                        record = []
+                        while pos > 0:
+                            pos -= 1
+                            char = view.substr(pos)
+                            if char == '#' and record != []:
+                                record.reverse()
+                                return record
+                            if char == ' ':
+                                break
+                            record.append(char)
+                    elif stack[len(stack) - 1] == '}':
+                        stack.pop()
+                    else:
+                        return []
+                pos -= 1
+            return []
