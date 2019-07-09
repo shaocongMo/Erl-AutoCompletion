@@ -123,7 +123,14 @@ where t.file_name = includetree.name;
 '''
 
 QUERY_RECORD_FIELDS_SQL = '''
-select field, default_val from records where record = ?;
+with recursive
+    includetree(name) as (
+    select ? union all 
+    select includes.include from includetree, includes 
+    where includes.file_name = includetree.name)
+select t.field, t.default_val from includetree,
+(select records.file_name, records.field, records.default_val from records where records.record = ?) t 
+where t.file_name = includetree.name;
 '''
 
 DEL_INCLUDE_SQL = '''
@@ -239,11 +246,12 @@ class DataCache:
             completion_data.append([('{0}\trecord').format(record), ('{0}${1}').format(record,1)])
         return completion_data
 
-    def query_record_fields(self, record, need_show_equal):
+    def query_record_fields(self, filepath, record, need_show_equal):
+        filename = self.get_filename_from_path(filepath)
         query_data = []
         try:
             self.lock.acquire(True)
-            self.db_cur.execute(QUERY_RECORD_FIELDS_SQL, (record, ))
+            self.db_cur.execute(QUERY_RECORD_FIELDS_SQL, (filename, record, ))
             query_data = self.db_cur.fetchall()
         finally:
             self.lock.release()

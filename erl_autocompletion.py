@@ -70,7 +70,7 @@ class ErlListener(sublime_plugin.EventListener):
             if record != []:
                 # show record field
                 record_name = "".join(record)
-                fields = cache['project'].query_record_fields(record_name, need_show_equal)
+                fields = cache['project'].query_record_fields(view.file_name(), record_name, need_show_equal)
                 if fields != []:
                     return (fields, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
 
