@@ -30,7 +30,7 @@ GLOBAL_SET = {
         'includeline' : re.compile(r'^\s*-\s*include\s*\(\s*"(\w+.\w+)"\s*\)\s*.'),
         'defineline' : re.compile(r'^\s*-\s*define\s*\(\s*(\w+),\s*\w+\s*\)\s*.'),
         'record_re' : re.compile(r'\s*-\s*record\s*\(\s*(\w+)\s*,\s*\{([^-]*)\}\s*\)\s*.', re.DOTALL + re.MULTILINE),
-        'record_field_re' : re.compile(r'\s*(\w+)\s*=\s*([#{}\[\].\w\d"]*)\s*,?\s*', re.DOTALL + re.MULTILINE),
+        'record_field_re' : re.compile(r'\s*(\w+)\s*=?\s*([#{}\[\].\w\d"]*)\s*,?\s*', re.DOTALL + re.MULTILINE),
         'special_param': re.compile(r'(?:\{.*\})|(?:<<.*>>)|(?:\[.*\])'),
         '=' : re.compile(r'\s*=\s*\w+'),
         'take_mf' : re.compile(r'(\w+)\s*:\s*(\w+)\s*\('),
