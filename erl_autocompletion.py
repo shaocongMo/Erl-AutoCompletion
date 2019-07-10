@@ -4,6 +4,8 @@ import sublime_plugin, sublime, re, os, sys, shutil
 
 cache = {}
 
+ERL_AUTO_COMPLETE = ['#', '.', '{', '?', ':']
+
 def plugin_loaded():
     global cache
 
@@ -32,8 +34,14 @@ class ErlListener(sublime_plugin.EventListener):
         if not view.match_selector(locations[0], "source.erlang"): 
             return []
 
+        view_sel = view.sel()
+        sel = view_sel[0]
+        pos = sel.end()
         point = locations[0] - len(prefix) - 1
-        letter = view.substr(point)
+        if view.substr(pos - 1) in ERL_AUTO_COMPLETE:
+            letter = view.substr(pos - 1)
+        else:
+            letter = view.substr(point)
 
         if letter == ':':
             # show function
@@ -117,6 +125,13 @@ class ErlListener(sublime_plugin.EventListener):
 
     def on_load(self, view):
         cache['project'].build_data_async()
+
+    def on_modified(self, view):
+        view_sel = view.sel()
+        sel = view_sel[0]
+        pos = sel.end()
+        if view.substr(pos - 1) in ERL_AUTO_COMPLETE:
+            view.run_command('auto_complete')
 
 class GotoCommand(sublime_plugin.TextCommand):
     def run(self, edit):
