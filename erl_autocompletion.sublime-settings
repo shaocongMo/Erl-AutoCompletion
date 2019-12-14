@@ -1,4 +1,13 @@
 {
     // if escript not in the path, we need set escript path.
     // "escript" : "D:\\erl8.3\\erts-8.3\\bin\\escript"
+
+    // 自动编译开关
+    "erl_auto_compile": false,
+    // erlc 路径
+    "erlc_path": "erlc",
+    // 默认以第一个项目文件夹路径为根路径
+    // 如：项目文件夹路径： d:/project  include路径为：d:/project/include output路径为：d:/project/ebin
+    "erl_include_path": ["include"],
+    "erl_output_path": "ebin"
 }

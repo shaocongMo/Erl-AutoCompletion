@@ -84,6 +84,8 @@ class ErlListener(sublime_plugin.EventListener):
         if not ('source.erlang' in view.scope_name(caret)): 
             return
 
+        auto_compile(view)
+
         cache['project'].rebuild_module_index(view.file_name())
 
     def on_window_command(self, window, command_name, args):
@@ -96,3 +98,21 @@ class ErlListener(sublime_plugin.EventListener):
 class GotoCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         return
+
+def auto_compile(view):
+    setting = sublime.load_settings('erl_autocompletion.sublime-settings')
+    auto_compile = setting.get('erl_auto_compile', False)
+    folders = view.window().folders()
+    if len(folders) > 0 and auto_compile :
+        root = folders[0] + '/'
+        file_name = view.file_name()
+        erlc_path = setting.get('erlc_path', 'erlc')
+        cmd = erlc_path
+        output_path = root + setting.get('erl_output_path', './ebin')
+        cmd = cmd + ' -o ' + output_path
+        for include_path in setting.get('erl_include_path', ['./include']):
+            cmd = cmd + ' -I ' + root + include_path
+        cmd = cmd + ' ' + file_name
+        print(cmd)
+        os.popen(cmd)
+        # todo 显示结果
