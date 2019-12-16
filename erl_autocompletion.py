@@ -113,6 +113,9 @@ def auto_compile(view):
         for include_path in setting.get('erl_include_path', ['./include']):
             cmd = cmd + ' -I ' + root + include_path
         cmd = cmd + ' ' + file_name
-        print(cmd)
-        os.popen(cmd)
-        # todo 显示结果
+        p = os.popen(cmd)
+        data = p.read()
+        if len(data) > 0 :
+            view.show_popup('<p>' + data + '</p><hr><button>Close</button>')
+        else:
+            sublime.status_message(file_name + 'compile success')
