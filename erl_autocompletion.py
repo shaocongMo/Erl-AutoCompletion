@@ -116,6 +116,6 @@ def auto_compile(view):
         p = os.popen(cmd)
         data = p.read()
         if len(data) > 0 :
-            view.show_popup('<p>' + data + '</p><hr><button>Close</button>')
+            view.show_popup('<p>' + data + '</p>')
         else:
             sublime.status_message(file_name + 'compile success')
