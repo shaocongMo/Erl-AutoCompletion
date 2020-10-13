@@ -131,11 +131,14 @@ def auto_compile(view):
         xref_check = xrefCheck(view, setting, erlc_path, root + include_path, file_name, output_path)
         cmd = cmd + ' ' + file_name
         with os.popen(cmd) as f:
-            f.read()
+            data = f.read()
         if len(xref_check) > 0 :
             cache['compile_log'] = xref_check
         else:
-            cache['compile_log'] = file_name + ' compile success'
+            if len(data) > 0 :
+                cache['compile_log'] = 'Compile:\n' + data
+            else :
+                cache['compile_log'] = file_name + ' compile success'
         view.run_command('erlang_compile_show')
 
 def xrefCheck(view, setting, erlc_path, include_path, file_name, output_path):
@@ -148,7 +151,10 @@ def xrefCheck(view, setting, erlc_path, include_path, file_name, output_path):
         with os.popen('xrefr') as f:
             xrefData = f.read()
             if len(xrefData) > 0:
-                data = 'Compile:\n' + data + '\nXref:\n' + xrefData
+                if len(data) > 0:
+                    data = 'Compile:\n' + data + '\nXref:\n' + xrefData
+                else:
+                    data = 'Xref:\n' + xrefData
             else:
                 if len(data) > 0:
                     data = 'Compile:\n' + data

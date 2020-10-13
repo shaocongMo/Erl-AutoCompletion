@@ -9,5 +9,7 @@
     // 默认以第一个项目文件夹路径为根路径
     // 如：项目文件夹路径： d:/project  include路径为：d:/project/include output路径为：d:/project/ebin
     "erl_include_path": ["include"],
-    "erl_output_path": "ebin"
+    "erl_output_path": "ebin",
+    // xref检查开关
+    "xref_check": false
 }
