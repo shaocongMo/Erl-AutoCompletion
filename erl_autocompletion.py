@@ -13,6 +13,7 @@ def plugin_loaded():
 
     cache['project'] = DataCache('project', cache_dir)
     cache['project'].build_data_async()
+    cache['xrefConfig'] = False
 
 def plugin_unloaded():
     from package_control import events
@@ -99,6 +100,21 @@ class GotoCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         return
 
+class ErlangCompileShowCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        id = 'erlang_compile_show'
+        w = self.view.window().get_output_panel(id)
+        if not w:
+            w = self.view.window().create_output_panel(id)
+        self.view.window().run_command("show_panel", {"panel": ("output.%s" % id)})
+        w.run_command('erlang_compile_show_panel')
+        return
+
+class ErlangCompileShowPanelCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        self.view.insert(edit, 0, cache['compile_log'])
+        return
+
 def auto_compile(view):
     setting = sublime.load_settings('erl_autocompletion.sublime-settings')
     auto_compile = setting.get('erl_auto_compile', False)
@@ -112,10 +128,45 @@ def auto_compile(view):
         cmd = cmd + ' -o ' + output_path
         for include_path in setting.get('erl_include_path', ['./include']):
             cmd = cmd + ' -I ' + root + include_path
+        xref_check = xrefCheck(view, setting, erlc_path, root + include_path, file_name, output_path)
         cmd = cmd + ' ' + file_name
-        p = os.popen(cmd)
-        data = p.read()
-        if len(data) > 0 :
-            view.show_popup('<p>' + data + '</p>')
+        with os.popen(cmd) as f:
+            f.read()
+        if len(xref_check) > 0 :
+            cache['compile_log'] = xref_check
         else:
-            sublime.status_message(file_name + 'compile success')
+            cache['compile_log'] = file_name + ' compile success'
+        view.run_command('erlang_compile_show')
+
+def xrefCheck(view, setting, erlc_path, include_path, file_name, output_path):
+    xref_check = setting.get('xref_check', False)
+    if xref_check :
+        buildXrefConfig(view, setting)
+        cmd = erlc_path + ' +debug_info -I ' + include_path + ' ' + file_name
+        with os.popen(cmd) as f:
+            data = f.read()
+        with os.popen('xrefr') as f:
+            xrefData = f.read()
+            if len(xrefData) > 0:
+                data = 'Compile:\n' + data + '\nXref:\n' + xrefData
+            else:
+                if len(data) > 0:
+                    data = 'Compile:\n' + data
+        beamPath = sublime.packages_path() + '\\Erl-AutoCompletion\\util\\' + file_name.split('\\')[-1][:-3] + 'beam'
+        if os.path.exists(beamPath):
+            os.remove(beamPath)
+        return data
+    return ''
+
+def buildXrefConfig(view, setting):
+    folders = view.window().folders()
+    root = folders[0] + '/'
+    if cache['xrefConfig'] != root:
+        cache['xrefConfig'] = root
+        output_path = root + setting.get('erl_output_path', './ebin')
+        configPath = sublime.packages_path() + '\\Erl-AutoCompletion\\util\\xref.config'
+        configData = '[{xref,[{config,#{dirs=>["./"],extra_paths=>["' + output_path.replace('\\', '/') + '"]}},{checks,[undefined_function_calls]}]}].'
+        configFile = open(configPath, 'w')
+        configFile.write(configData)
+        configFile.flush()
+        configFile.close()
