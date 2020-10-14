@@ -1,6 +1,6 @@
 from .util import *
 from functools import partial
-import sublime_plugin, sublime, re, os, sys, shutil
+import sublime_plugin, sublime, re, os, sys, shutil, time
 
 cache = {}
 
@@ -112,7 +112,7 @@ class ErlangCompileShowCommand(sublime_plugin.TextCommand):
 
 class ErlangCompileShowPanelCommand(sublime_plugin.TextCommand):
     def run(self, edit):
-        self.view.insert(edit, 0, cache['compile_log'])
+        self.view.insert(edit, 0, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + '\n' + cache['compile_log'])
         return
 
 def auto_compile(view):
