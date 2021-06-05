@@ -22,36 +22,39 @@ class GoTo(DataCache):
         word = view.substr(word_region)
         filepath = view.file_name()
 
-        maths = self.re_dict['take_mf'].findall(line_str)
-        for math in maths:
-            if word in math:
-                if self.__goto_menu(view, cache['libs'].query_fun_position(math[0], math[1])):
+        matchs = self.re_dict['take_mf'].findall(line_str)
+        for match in matchs:
+            if word in match:
+                if self.__goto_menu(view, cache['libs'].query_fun_position(match[0], match[1])):
                     return
-                if self.__goto_menu(view, cache['project'].query_fun_position(math[0], math[1])):
+                if self.__goto_menu(view, cache['project'].query_fun_position(match[0], match[1])):
                     return
 
-        maths = self.re_dict['take_fun'].findall(line_str)
-        for math in maths:
-            if word == math:
+        matchs = self.re_dict['take_fun'].findall(line_str)
+        for match in matchs:
+            if word == match:
                 module = self.get_module_from_path(filepath)
-                if self.__goto_menu(view, cache['libs'].query_fun_position('erlang', math)):
+                if self.__goto_menu(view, cache['libs'].query_fun_position('erlang', match)):
                     return
-                if self.__goto_menu(view, self.__build_module_position(view, module, math, filepath)):
+                if self.__goto_menu(view, self.__build_module_position(view, module, match, filepath)):
                     return
 
-        maths = self.re_dict['take_record'].findall(line_str)
-        for math in maths:
-            if word == math:
+        matchs = self.re_dict['take_record'].findall(line_str)
+        for match in matchs:
+            if word == match:
                 re_define = re.compile(r'(-\s*record\s*\([\s\n\r]*' + word + r'[\s\n\r]*,[\s\n\r]*{[^-]*}[\s\n\r]*\)\.)', re.MULTILINE|re.DOTALL)
                 if self.__open_hrl_popup(view, re_define, filepath):
                     return
 
-        maths = self.re_dict['take_define'].findall(line_str)
-        for math in maths:
-            if word == math:
+        matchs = self.re_dict['take_define'].findall(line_str)
+        for match in matchs:
+            if word == match:
                 re_define = re.compile(r'(-\s*define\s*\([\s\n\r]*' + word + r'[\s\n\r]*,[\s\n\r]*[^-]*\)\.)', re.MULTILINE|re.DOTALL)
                 if self.__open_hrl_popup(view, re_define, filepath):
                     return
+        
+        if self.__define_references_popup(view, cache['project'].query_define_use(word)):
+            return
 
     def __goto_menu(self, view, data):
         if data == []:
@@ -69,6 +72,21 @@ class GoTo(DataCache):
         html_content = '<div style={}>Definitions:</div>'.format(self.__definition_style)
         for (name, path, row) in data:
             add_str = '<div style={0}>{1} <a href="{2}:{3}:0">{2}:{3}</a></div>'.format(self.__line_style, name, path, row)
+            html_content += add_str
+            col = max(len(add_str), col)
+            row += 1
+
+        view.show_popup(html_content, max_height = self.__get_height(row), max_width = self.__get_width(col), 
+            flags = sublime.HIDE_ON_MOUSE_MOVE_AWAY, location = self.__point, 
+            on_navigate = self.__on_navigate_cb)
+        return True
+
+    def __define_references_popup(self, view, data):
+        col = 0
+        row = 1
+        html_content = '<div style={}>References:</div>'.format(self.__definition_style)
+        for (name, path, row) in data:
+            add_str = '<div style={0}><a href="{2}:{3}:0">{1}</a></div>'.format(self.__line_style, name, path, row)
             html_content += add_str
             col = max(len(add_str), col)
             row += 1

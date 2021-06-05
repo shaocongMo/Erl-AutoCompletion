@@ -60,6 +60,25 @@ delete from libs where id in (select id from libs_info where parent_id = ?);
 DEL_FOLDER_SQL = '''
 delete from libs_info where parent_id = ? or folder = ?;
 '''
+
+CREATE_DEFINE_USE_SQL = '''
+create table if not exists define_use (
+    id int unsigned not null,
+    mod_name varchar(128) not null,
+    define_name varchar(256) not null,
+    row_num int unsigned not null,
+    other_data varchar(10) not null,
+    primary key(id, mod_name, define_name, row_num)
+);
+'''
+
+INSERT_DEFINE_USE_SQL = '''
+replace into define_use(id, mod_name, define_name, row_num, other_data) values (?, ?, ?, ?, ?);
+'''
+
+QUERY_DEFINE_USE_SQL = '''
+select folder, mod_name, row_num from define_use join libs_info where libs_info.id = define_use.id and define_name = ?;
+'''
 class DataCache:
     def __init__(self, data_type = '', cache_dir = '', dir = None):
         self.dir = dir
@@ -78,6 +97,7 @@ class DataCache:
         self.db_cur = self.db_con.cursor()
         self.db_cur.execute(CREATE_LIBS_INFO_SQL)
         self.db_cur.execute(CREATE_LIBS_SQL)
+        self.db_cur.execute(CREATE_DEFINE_USE_SQL)
 
     def query_mod_fun(self, module):
         query_data = []
@@ -130,6 +150,23 @@ class DataCache:
 
         return completion_data
 
+    def query_define_use(self, define_name):
+        query_data = []
+        try:
+            self.lock.acquire(True)
+            self.db_cur.execute(QUERY_DEFINE_USE_SQL, (define_name,))
+            query_data = self.db_cur.fetchall()
+        finally:
+            self.lock.release()
+
+        completion_data = []
+        for (folder, mod_name, row_num) in query_data:
+            filepath = os.path.join(folder, mod_name + '.erl')
+            completion_data.append(('{}/{}'.format(mod_name,row_num), filepath, row_num))
+
+        return completion_data
+
+
     def build_module_index(self, filepath, folder_id):
         with open(filepath, encoding = 'UTF-8', errors='ignore') as fd:
             content = fd.read()
@@ -157,6 +194,15 @@ class DataCache:
                             self.db_cur.execute(INSERT_LIBS_SQL, (folder_id, module, fun_name, param_len, row_num, param_str))
                         finally:
                             self.lock.release()
+
+                defineUse = self.re_dict['take_define'].search(line)
+                if defineUse is not None:
+                    define_name = defineUse.group(1)
+                    try:
+                        self.lock.acquire(True)
+                        self.db_cur.execute(INSERT_DEFINE_USE_SQL, (folder_id, module, define_name, row_num, ""))
+                    finally:
+                        self.lock.release()
                 row_num += 1
 
     def get_module_from_path(self, filepath):
